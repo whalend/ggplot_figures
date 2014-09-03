@@ -1,0 +1,143 @@
+---
+title: "Visualization of disease symptoms and host density in multiple years"
+date: "Wednesday, September 3rd, 2014"
+output: html_document
+---
+
+#####My goal is to visualize the relationship between disease symptoms caused by *Phytophthora ramorum* on California bay laurel and the density of this host tree in measured in the same plots across multiple years.
+
+I am going to make all of my figure outputs SVG
+```{r setup, echo=TRUE}
+library(knitr)
+opts_chunk$set(dev = 'svg')
+```
+
+######Load necessary libraries, loading `plyr` before `dplyr` avoids a warning.
+```{r Load libraries, echo=TRUE, message=FALSE}
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+```
+
+######Read in each data frame, one for bay laurel density and one for bay laurel symptomatic leaf count across a number of plots, and look at the structure and summary.
+```{r Read in bay density data, echo=TRUE}
+bay_dens <- readRDS("bay_dens.rds")
+str(bay_dens)
+summary(bay_dens)
+```
+
+```{r Read in symptomatic leaf count data, echo=TRUE}
+bay_slc <- readRDS("bay_slc.rds")
+str(bay_slc)
+summary(bay_slc)
+```
+
+
+######The data is a bit messy, so let's make it tidy. In a "tidy" data set each row is an obervation and each column is a variable. Read more in the `tidyr` vignette and/or the paper by Hadley Wickham. I restructured each data frame so that it is "long," meaning that the plot and year were repeated for each measure of density and symptomatic leaf count. This uses tools from the `dplyr` and `tidyr` packages, taking advantage of the "piping" operator (`%>%`) that was introduced in the `magrittr` package.
+```{r Tidying data, echo=TRUE}
+bay_dens <- bay_dens %>% gather(year, density, umca_ct_04:umca_ct_11) %>% 
+      mutate(year = extract_numeric(year), year = as.factor(year+2000))
+
+bay_slc <- bay_slc %>% gather(year, slc, cum_slc_04:cum_slc_11) %>% 
+      mutate(year = extract_numeric(year), year = as.factor(year+2000))
+```
+
+######Now these data frames share two common columns, so I will join them into one based on the `plotid` and `year` variables and check the resulting data structure. This data frame can be exported using the commented code.  
+```{r Look at tidy data frame, echo=TRUE}
+bay_vars1 <- inner_join(bay_dens,bay_slc, by = c("plotid","year"))
+str(bay_vars1)
+head(bay_vars1)
+#saveRDS(bay_vars1, file = "bay_variables.rds")
+#bay_vars1 <- readRDS("bay_variables.rds")
+```
+You may be thinking that I have made more work because I am going to need the data in structure more closely resembling the original format to look at relationships for each year. However, I will demonstrate some of the utility of `dplyr` and the "piping" `%>%` operator when the data is tidy. 
+
+######Now on to plotting! I am interested in visualizing how the relationship between bay laurel density and bay laurel symptomatic leaf count changes between years. I want to fit a linear regression model (`lm`) to the data from each year for easy comparisons. First, I checked the distribution of the variables:
+```{r Histograms, fig.width=6, fig.height=9, echo=TRUE}
+par(mfrow=c(2,1))
+hist(bay_vars1$density, main = "Bay laurel density")
+hist(bay_vars1$slc, main = "Bay laurel symptomatic leaf count")
+```
+
+These show some pretty severe right skew, so I tried a log transformation:
+
+```{r Log-transformed histograms, fig.width=6, fig.height=9, echo=TRUE}
+par(mfrow=c(2,1))
+hist(log(bay_vars1$density), main = "Bay laurel density")
+hist(log(bay_vars1$slc), main = "Bay laurel symptomatic leaf count")
+```
+
+These look much better (closer to a normal distribution), so I will log transfrom the variables for the plotting and modeling. I will also need to add one to each variable, because there are some plots where the value for either density or the leaf count is zero.
+
+
+---------------------------------
+######To get started with the plotting by year I created a `ggplot` object using the `qplot` function. The data isn't structured quite right for what I want to do, so I employed the piping operator and the `group_by` function from the `dplyr` package in the call to `data` in the plotting function. I want the density and leaf count grouped by plot and year, so those go into the function. Now I can use year to create a default color scheme and in the `facet` option to make this a multipanel plot. 
+```{r Create ggplot object, fig.width=6, fig.height=9, echo=TRUE}
+p1 <- qplot(log(density+1), log(slc+1), data = bay_vars1 %>% 
+                  group_by(plotid, year), color = year, facets = year~., 
+            xlab = "Bay Laurel Density", ylab = "Symptomatic Leaf Count", 
+            main = "Symptomatic Leaf Count (log) vs Bay Laurel Density (log)")
+p1
+```
+This first object is made up of scatter plots showing the log-log relationship between symptomatic leaf count and bay laurel density, with each year getting its own color and panel (facet). You can see that the variance in the relationship between bay laurel density and leaf count appears to decrease through time. But, it is difficult to really judge the magnitude.
+
+######To address this I started by adding a call to the smoothing function in `ggplot2` based on a linear model of these variables. The gray area around the lines are the estimated standard errors and they do appear to overall decrease through time, but it is difficult to tell if the improvement is really substantial. 
+```{r Add smoothing line using `lm` method, fig.width=6, fig.height=9, echo=TRUE}
+p1 + geom_smooth(aes(group=year), method="lm", size = 0.5)
+```
+
+######The solution is to add the fit metric (i.e. r-squared) to each plot. This required a function that I found here: <https://groups.google.com/forum/#!topic/ggplot2/1bnBQ7yE564> to generate the equations for each year. I adapted this to the specifics of my data frame. Specifically, I assigned the `x` and `y` to the log of the symptomatic leaf count and log of the bay laurel density variables. The call to `ddply` runs the function on the variables in `bay_vars1` data frame after grouping them by year (this is why I loaded the `plyr` package earlier).
+```{r Regression equation function, fig.width=6, fig.height=9, echo=TRUE}
+reg_eqn <- function(df) {
+      y = log(df$slc+1)
+      x = log(df$density+1)
+      m <- lm(y ~ x, data = df)
+      
+      a <- coef(m)[1]
+      b <- coef(m)[2]
+      r2 <- summary(m)$r.squared
+      
+      expr <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2,
+                         list(a = format(a, digits = 2),
+                              b = format(b, digits = 2),
+                              r2 = format(r2, digits = 3)))
+      c(lab = as.character(as.expression(expr)))
+}
+eqns <- ddply(bay_vars1, "year", reg_eqn)
+```
+
+######Now I can add the labels using a call to `geom_text` using the data from the `eqns` data frame I just created.
+```{r Add r-squared to each plot, fig.width=6, fig.height=9, echo=TRUE}
+p1 <- p1 + geom_smooth(aes(group=year), method="lm", size = 0.5) +
+      geom_text(aes(x = 0, y = 3, label = lab), data = eqns, parse = T, 
+                hjust = 0, vjust = -1.5) 
+```
+The `x` and `y` in `geom_text` are the coordinates for the initial placement of the labels. I adjusted the horizontal (`hjust`) and vertical (`vjust`) placement after a few plotting attempts. #Note:# It is necessary to have the correct transformation in the call to the `reg_eqn` function
+
+######I also changed the theme to remove the gray background, discarded the legend because the years are already labeled, and adjusted the margins between the panels. This last adjustment required the `grid` package in order to recognize the unit
+```{r Adjust theme, fig.width=6, fig.height=9, echo=TRUE}
+library(grid)
+p1 + theme_light() +
+      theme(legend.position="none") +
+      theme(panel.margin = unit(0.7,"lines")) #`unit` required a specific loading of `grid`
+```
+
+######Finally, I put this all together in a call to `ggplot` instead of starting with `qplot` and added a few other adjustments, most notably, changing the 'size' and 'alpha' value for the points (`geom_point`) to increase transparency due to the overlap. 
+``` {r, fig.width=6, fig.height=9, echo=TRUE}
+p1 <- ggplot(data = bay_vars1 %>% group_by(year), 
+              aes(x = log(density+1), y = log(slc+1), color = year)) + 
+      geom_point(size=3, alpha = 0.3) + 
+      geom_smooth(method="lm", size = 0.5) + 
+      geom_text(aes(x = 0, y = 3, label = lab), data = eqns, parse = T, 
+                hjust = 0, vjust = -1.5) + 
+      facet_grid(year~.)
+p1 + theme_light() +
+      theme(legend.position = "none") +
+      theme(panel.margin = unit(0.7, "lines")) +
+      labs(x = "Log bay laurel density", 
+           y = "Log bay laurel symptomatic leaf count")
+```
+
+Hat-tip @noamross for his blog post here <http://www.noamross.net/blog/2013/11/20/formatting-plots-for-pubs.html> where a few things about `ggplot` finally became clear.
+
