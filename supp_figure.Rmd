@@ -1,3 +1,5 @@
+
+```{r }
 # Creating a figure describing the relationship between bay laurel density and symptomatic leaf count from 2004-2012
 
 # Load libraries
@@ -104,4 +106,5 @@ p1a + theme_bw() +
       theme(panel.margin = unit(0.7, "lines")) +
       labs(x = "Log bay laurel density", y = "Log bay laurel symptomatic leaf count")
 dev.off()
+```
 

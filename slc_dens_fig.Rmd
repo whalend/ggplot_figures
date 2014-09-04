@@ -1,16 +1,13 @@
 ---
 title: "Visualization of disease symptoms and host density in multiple years"
+output: pdf_document
 date: "Wednesday, September 3rd, 2014"
-output: html_document
 ---
 
 #####My goal is to visualize the relationship between disease symptoms caused by *Phytophthora ramorum* on California bay laurel and the density of this host tree in measured in the same plots across multiple years.
 
-I am going to make all of my figure outputs SVG
-```{r setup, echo=TRUE}
-library(knitr)
-opts_chunk$set(dev = 'svg')
-```
+----
+
 
 ######Load necessary libraries, loading `plyr` before `dplyr` avoids a warning.
 ```{r Load libraries, echo=TRUE, message=FALSE}
@@ -124,7 +121,7 @@ p1 + theme_light() +
 ```
 
 ######Finally, I put this all together in a call to `ggplot` instead of starting with `qplot` and added a few other adjustments, most notably, changing the 'size' and 'alpha' value for the points (`geom_point`) to increase transparency due to the overlap. 
-``` {r, fig.width=6, fig.height=9, echo=TRUE}
+``` {r Final ggplot, fig.width=6, fig.height=9, echo=TRUE}
 p1 <- ggplot(data = bay_vars1 %>% group_by(year), 
               aes(x = log(density+1), y = log(slc+1), color = year)) + 
       geom_point(size=3, alpha = 0.3) + 
@@ -141,3 +138,11 @@ p1 + theme_light() +
 
 Hat-tip @noamross for his blog post here <http://www.noamross.net/blog/2013/11/20/formatting-plots-for-pubs.html> where a few things about `ggplot` finally became clear.
 
+```{r, eval=FALSE, echo=FALSE}
+library(RWordPress)
+options(WordpressLogin = c(treesandbeer = 'deuceace21'),
+        WordpressURL = 'http://whalendillon.wordpress.com/xmlrpc.php')
+library(knitr)
+knit2wp("slc_dens_fig.Rmd", title = "Visualizing disease symptoms and host density across multiple years", categories = c("Blog","R","ggplot2"), shortcode = TRUE, publish = FALSE)
+knit2html("slc_dens_fig.Rmd", "slc_dens.html")
+```
