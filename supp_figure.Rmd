@@ -42,7 +42,7 @@ hist(bay_vars1$slc, main = "Bay laurel symptomatic leaf count")
 
 These show some pretty severe right skew, so I tried a log transformation:
       
-      ```{r Log-transformed histograms, fig.width=6, fig.height=9, echo=TRUE}
+```{r Log-transformed histograms, fig.width=6, fig.height=9, echo=TRUE}
 par(mfrow=c(2,1))
 hist(log(bay_vars1$density), main = "Bay laurel density")
 hist(log(bay_vars1$slc), main = "Bay laurel symptomatic leaf count")
@@ -92,8 +92,10 @@ p1a + theme_bw() +
       theme(legend.position = "none") +
       theme(panel.margin = unit(0.7, "lines")) +
       labs(x = "Log bay laurel density", y = "Log bay laurel symptomatic leaf count")
+```
 
-# A couple of alternative ways to export the plot ####
+A couple of alternative ways to export the plot
+```{r exporting plot}
 # You can also do this from the plotting device
 
 #`ggsave` defaults to saving the last plot that you displayed, and for a default size uses the size of the current graphics device. It also guesses the type of graphics device from the extension. This means the only argument you need to supply is the filename
