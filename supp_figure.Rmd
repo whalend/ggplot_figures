@@ -46,9 +46,13 @@ These show some pretty severe right skew, so I tried a log transformation:
 par(mfrow=c(2,1))
 hist(log(bay_vars1$density), main = "Bay laurel density")
 hist(log(bay_vars1$slc), main = "Bay laurel symptomatic leaf count")
+```
 
+```{r Version 1: Plot leaf count vs density faceted by year}
 # Plot data ####
-p1 <- qplot(log(bay_dens+1), log(slc+1), data = bay_vars1 %>% group_by(plotid, year), color = year, facets = year~., xlab = "Bay Laurel Density", ylab = "Symptomatic Leaf Count", main = "ln(Symptomatic Leaf Count) vs ln(Bay Laurel Density)")
+df1 <- bay_vars1 %>%
+      group_by(plotid, year)
+p1 <- qplot(log(density+1), log(slc+1), data = df1, color = year, facets = year~., xlab = "Bay Laurel Density", ylab = "Symptomatic Leaf Count", main = "ln(Symptomatic Leaf Count) vs ln(Bay Laurel Density)")
 
 # Add smooth line to get a better idea of the magnitude of change ####
 p1 + geom_smooth(aes(group=year), method="lm", size = 0.5)
@@ -56,7 +60,7 @@ p1 + geom_smooth(aes(group=year), method="lm", size = 0.5)
 # Calculate the regression equation and r-square for each linear model ####
 reg_eqn <- function(df) {
       y = log(df$slc+1)
-      x = log(df$bay_dens+1)
+      x = log(df$density+1)
       m <- lm(y ~ x, data = df)
       
       a <- coef(m)[1]
@@ -77,21 +81,33 @@ p1 + geom_smooth(aes(group=year), method="lm", size = 0.5) +
       theme_bw() +
       theme(legend.position="none") +
       theme(panel.margin = unit(0.7,"lines"))
+```
 
+```{r Final version ggplot code}
 # Finalized plotting code ####
 # Hat-tip to Noam Ross' blog post here <http://www.noamross.net/blog/2013/11/20/formatting-plots-for-pubs.html>
 
 p1a <- ggplot(data = bay_vars1 %>% group_by(year), 
-              aes(x = log(bay_dens+1), y = log(slc+1), color = year)) + 
+              aes(x = log(density+1), y = log(slc+1))) + 
       geom_point(size=3, alpha = 0.3) + 
-      geom_smooth(method="lm", size = 0.5) + 
+      geom_smooth(method="lm", size = 0.5, color = "black") + 
       geom_text(aes(x = 0, y = 3, label = lab), data = eqns, parse = T, 
-                hjust = 0, vjust = -1.5) + 
+                hjust = 0, vjust = -1.2) + 
       facet_grid(year~.)
 p1a + theme_bw() +
       theme(legend.position = "none") +
       theme(panel.margin = unit(0.7, "lines")) +
-      labs(x = "Log bay laurel density", y = "Log bay laurel symptomatic leaf count")
+      theme(panel.grid=element_blank()) +
+      labs(x = "Bay Laurel Density", y = "Bay Laurel Inoculum Load") +
+      theme(text = element_text(size = 16)) +
+      theme(axis.title.x = element_text(size=16)) +
+      theme(axis.title.y = element_text(size=16, angle=90)) +
+      theme(axis.ticks = element_line(size = 1.1)) +
+      theme(axis.ticks.length = unit(.2, "cm"))
+
+ggsave(filename = "haas_supp_update1.pdf")
+ggsave(filename = "haas_supp_update1.tiff", width = 6, height = 8, units = "in", dpi = 300)
+ggsave(filename = "haas_supp_update1.png")
 ```
 
 A couple of alternative ways to export the plot
